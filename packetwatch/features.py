@@ -42,8 +42,7 @@ class SourceWindow:
     """One source IP's activity over the last WINDOW_SECONDS, in constant space."""
 
     __slots__ = ("window", "dirty", "last_seen", "_sec", "_pkts", "_bytes", "_tcp",
-                 "_udp", "_icmp", "_syn", "_susp", "_ports", "_dsts",
-                 "_ports_full", "_dsts_full")
+                 "_udp", "_icmp", "_syn", "_susp", "_ports", "_dsts")
 
     def __init__(self, window=config.WINDOW_SECONDS):
         self.window = window
@@ -61,8 +60,6 @@ class SourceWindow:
         self._susp = [0] * size
         self._ports = [set() for _ in range(size)]
         self._dsts = [set() for _ in range(size)]
-        self._ports_full = False
-        self._dsts_full = False
 
     def _slot(self, second):
         """Index of the slot for this second, cleared if it holds an older one."""
@@ -74,7 +71,6 @@ class SourceWindow:
             self._syn[i] = self._susp[i] = 0
             self._ports[i].clear()
             self._dsts[i].clear()
-            self._ports_full = self._dsts_full = False
         return i
 
     def add(self, ts, dport, dst, proto, syn_only, length):
@@ -94,14 +90,12 @@ class SourceWindow:
         if dport is not None:
             if dport in config.SUSPICIOUS_PORTS:
                 self._susp[i] += 1
-            if not self._ports_full:
+            # Bound each bucket independently; repeated values across seconds
+            # must not be mistaken for distinct ports and falsely saturate.
+            if len(self._ports[i]) < PORT_CAP:
                 self._ports[i].add(dport)
-                if self._live_count(self._ports) >= PORT_CAP:
-                    self._ports_full = True
-        if dst is not None and not self._dsts_full:
+        if dst is not None and len(self._dsts[i]) < DST_CAP:
             self._dsts[i].add(dst)
-            if self._live_count(self._dsts) >= DST_CAP:
-                self._dsts_full = True
 
     def _live_slots(self, now=None):
         """Slots still inside the window, newest second first."""
@@ -110,8 +104,15 @@ class SourceWindow:
         cutoff = int(now) - self.window + 1
         return [i for i, sec in enumerate(self._sec) if sec >= cutoff and sec >= 0]
 
-    def _live_count(self, sets):
-        return sum(len(sets[i]) for i in self._live_slots())
+    def _distinct_count(self, sets, cap, live):
+        # Union rather than sum. A truncated bucket already has cap distinct
+        # values, so the capped answer stays correct without sticky flags.
+        seen = set()
+        for i in live:
+            seen.update(sets[i])
+            if len(seen) >= cap:
+                return cap
+        return len(seen)
 
     def prune(self, now):
         """Drop slots that have fallen out of the window.
@@ -145,9 +146,7 @@ class SourceWindow:
 
     def unique_dst_ports(self):
         live = self._live_slots()
-        if self._ports_full:
-            return PORT_CAP
-        return len(set().union(*(self._ports[i] for i in live)) if live else ())
+        return self._distinct_count(self._ports, PORT_CAP, live)
 
     def suspicious_port_hits(self):
         return sum(self._susp[i] for i in self._live_slots())
@@ -161,8 +160,7 @@ class SourceWindow:
         live = self._live_slots()
         n = sum(self._pkts[i] for i in live)
         total_bytes = sum(self._bytes[i] for i in live)
-        dsts = (DST_CAP if self._dsts_full
-                else len(set().union(*(self._dsts[i] for i in live)) if live else ()))
+        dsts = self._distinct_count(self._dsts, DST_CAP, live)
         return [
             n,
             max((self._pkts[i] for i in live), default=0),

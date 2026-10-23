@@ -1,5 +1,11 @@
 # PacketWatch
 
+**Detection-quality update:** repeated ports/destinations are now counted correctly,
+expired scans clear correctly, live detection/calibration are scoped to this PC,
+and saved thresholds are validated before use. See [IMPROVEMENTS.md](IMPROVEMENTS.md)
+for measured before/after examples, tests, and the revised storage bound. This is
+not a claim of a newly measured ML accuracy percentage.
+
 **New to the project?** Start with the [Windows setup and run instructions](WINDOWS_SETUP.md)
 and the [100-point study guide](STUDY_GUIDE.md). Run `setup-windows.ps1` to create
 an isolated Python environment, then `run-demo.cmd` for the offline dashboard.

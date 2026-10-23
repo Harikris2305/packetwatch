@@ -32,7 +32,7 @@ def packet_length(pkt, ip):
 
 class Pipeline:
     def __init__(self, detector, blocker, alerter, own_addresses=(), record_path=None,
-                 clock=time.time, risk_map=None, observer=None):
+                 clock=time.time, risk_map=None, observer=None, destination_addresses=None):
         self.detector = detector
         self.blocker = blocker
         self.alerter = alerter
@@ -41,6 +41,10 @@ class Pipeline:
         # None costs an attribute lookup.
         self.observer = observer
         self.own = set(own_addresses)
+        # Actual host destinations, separate from trusted sources/router.
+        # None preserves the unscoped offline API; an empty set accepts none.
+        self.destinations = (None if destination_addresses is None
+                             else set(destination_addresses))
         self.risk = risk_map or RiskMap()
         self.clock = clock
         self.correlator = Correlator(clock=clock)
@@ -73,6 +77,8 @@ class Pipeline:
         self.stats["packets"] += 1
         if src in self.own or self.blocker.is_protected(src):
             return  # only judge traffic arriving from other hosts
+        if self.destinations is not None and ip.dst not in self.destinations:
+            return  # mirrored, broadcast or transit traffic is not this host
 
         dport, syn_only = None, False
         if TCP in pkt:

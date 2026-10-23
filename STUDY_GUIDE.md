@@ -29,7 +29,7 @@ Published evaluation numbers are repository reports, not a guarantee for your PC
 15. **Capture uses Scapy and Npcap.** `capture.py` checks privileges and capture support, then calls `sniff()`.
 16. **Packets are not retained by sniffing.** `store=False` discards Scapy's capture history; aggregated counters remain in memory.
 17. **The capture filter is `ip`.** The current detection path handles IPv4; the presence of `::1` in a whitelist does not imply IPv6 detection coverage.
-18. **Local/protected sources are skipped.** `Pipeline.handle()` filters by source address. It does not explicitly require every captured packet's destination to equal the protected PC, which matters on unusual capture interfaces.
+18. **Live traffic is scoped to this PC.** `Pipeline.handle()` skips local/protected sources, and the live CLI now supplies local destination addresses so unrelated, broadcast and multicast traffic is excluded. The offline API can remain unscoped. See `IMPROVEMENTS.md` for this change.
 19. **Evaluation is periodic.** Sweeps run at most once per second by default; a background ticker also evaluates short bursts after traffic stops.
 20. **Detection is not instantaneous packet rejection.** Traffic is observed and summarized before a decision; a firewall rule affects subsequent traffic, not packets already received.
 
@@ -55,7 +55,7 @@ Published evaluation numbers are repository reports, not a guarantee for your PC
 35. **Counters avoid per-packet memory growth.** A burst increases numbers rather than storing every packet object.
 36. **Source tracking has a cap of 4,096.** The pipeline uses an ordered dictionary and evicts the least recently updated source when necessary.
 37. **Idle sources expire after 60 seconds.** This releases inactive source windows.
-38. **Port and destination tracking are bounded.** Configured caps are 256 port entries and 64 destination entries; saturated feature values should be understood as capped summaries, not exact unlimited counts.
+38. **Port and destination tracking are bounded.** Each second stores at most 256 ports and 64 destinations. Live bucket unions deduplicate repeated values and report counts capped at 256/64. Across ten buckets the storage bound is 2,560/640 entries per source; previous memory benchmarks need rerunning.
 39. **Predictions are batched.** Each sweep collects pending feature vectors and calls `predict_many()` once, reducing repeated library-call overhead.
 40. **Not every structure has the same bound.** The main source windows and dashboard buffers have explicit limits; active firewall rules/timers can still grow with distinct confirmed sources. Avoid claiming the entire process has an absolute fixed memory ceiling.
 

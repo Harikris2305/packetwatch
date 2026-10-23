@@ -4,8 +4,8 @@ The three rule thresholds are stock values for a home or small-office link. If
 models/thresholds.json exists (written by `--calibrate`), its values are used
 instead: see packetwatch/calibrate.py for why and for the safety floors.
 """
-import json
 from pathlib import Path
+from .thresholds import load_thresholds
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
@@ -24,8 +24,8 @@ STATS_INTERVAL = 30
 # memory, and none of them hold packets.
 MAX_SOURCES = 4096          # source IPs tracked at once; oldest evicted first
 IDLE_EVICT_SECONDS = 60     # drop a source this long after its last packet
-PORT_TRACK_CAP = 256        # distinct ports remembered per source (>= any threshold)
-DST_TRACK_CAP = 64          # distinct destinations remembered per source
+PORT_TRACK_CAP = 256        # per-second storage and reported window count cap
+DST_TRACK_CAP = 64          # per-second storage and reported window count cap
 MAX_CORRELATED_IPS = 4096   # IPs held by the alert correlator
 MAX_CALIBRATION_SAMPLES = 50_000   # reservoir size while calibrating
 
@@ -38,16 +38,12 @@ PORT_SCAN_THRESHOLD = 10          # unique destination ports within the window
 FLOOD_PPS_THRESHOLD = 100         # packets per second
 SUSPICIOUS_PORT_THRESHOLD = 3     # hits on SUSPICIOUS_PORTS within the window
 
-CALIBRATED = {}
 _threshold_file = MODEL_DIR / "thresholds.json"
-if _threshold_file.exists():
-    try:
-        CALIBRATED = json.loads(_threshold_file.read_text(encoding="utf-8"))
-        PORT_SCAN_THRESHOLD = int(CALIBRATED["port_scan"])
-        FLOOD_PPS_THRESHOLD = int(CALIBRATED["flood_pps"])
-        SUSPICIOUS_PORT_THRESHOLD = int(CALIBRATED["suspicious_port"])
-    except (ValueError, KeyError, OSError):
-        CALIBRATED = {}                # malformed file: keep the stock values
+CALIBRATED = load_thresholds(_threshold_file)
+if CALIBRATED:
+    PORT_SCAN_THRESHOLD = CALIBRATED["port_scan"]
+    FLOOD_PPS_THRESHOLD = CALIBRATED["flood_pps"]
+    SUSPICIOUS_PORT_THRESHOLD = CALIBRATED["suspicious_port"]
 # 22 was added after CIC-IDS2017 showed SSH-Patator brute force passing the rule
 # layer untouched while FTP-Patator on 21 was caught in full. It costs ~0.4pp of
 # false positives on a corporate capture with real admin SSH; on a single Windows

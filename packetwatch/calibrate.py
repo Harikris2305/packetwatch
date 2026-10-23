@@ -17,22 +17,21 @@ import json
 import random
 import time
 
-import numpy as np
-
 from . import config
 from .features import FEATURE_NAMES, SourceWindow
+from .thresholds import FLOORS, CEILINGS
 
 THRESHOLD_FILE = config.MODEL_DIR / "thresholds.json"
 
 # A calibrated threshold may never fall below these, so a quiet baseline cannot
 # make the rules trigger-happy, nor a busy one make them useless.
-FLOORS = {"port_scan": 5, "flood_pps": 20, "suspicious_port": 3}
-CEILINGS = {"port_scan": 200, "flood_pps": 5000, "suspicious_port": 100}
 PERCENTILE = 99.9
 
 
 def thresholds_from_samples(samples, percentile=PERCENTILE):
     """Percentile of observed per-window values, clamped to the safe range."""
+    import numpy as np
+
     if not samples:
         raise ValueError("no traffic observed; cannot calibrate")
     cols = {name: np.array([s[i] for s in samples], dtype=float)
@@ -49,8 +48,12 @@ def thresholds_from_samples(samples, percentile=PERCENTILE):
 class Collector:
     """Snapshots each active source's feature window once a second."""
 
-    def __init__(self, clock=time.time, max_samples=config.MAX_CALIBRATION_SAMPLES):
+    def __init__(self, clock=time.time, max_samples=config.MAX_CALIBRATION_SAMPLES,
+                 own_addresses=(), destination_addresses=None):
         self.clock = clock
+        self.own = set(own_addresses)
+        self.destinations = (None if destination_addresses is None
+                             else set(destination_addresses))
         self.windows = {}
         self.samples = []
         self.seen = 0
@@ -81,6 +84,10 @@ class Collector:
         from .pipeline import packet_length
 
         ip = pkt[IP]
+        if ip.src in self.own:
+            return
+        if self.destinations is not None and ip.dst not in self.destinations:
+            return
         dport, syn_only = None, False
         if TCP in pkt:
             dport = int(pkt[TCP].dport)
@@ -117,7 +124,13 @@ def run(iface=None, seconds=300):
     from . import capture
 
     capture.preflight()
-    collector = Collector()
+    from .response import local_addresses
+
+    destinations = local_addresses(include_gateway=False)
+    if not destinations:
+        raise SystemExit("Could not identify this host's IPv4 addresses; cannot calibrate.")
+    collector = Collector(own_addresses=local_addresses(),
+                          destination_addresses=destinations)
     print(f"Calibrating on {seconds}s of traffic. Use the machine normally, and do "
           "NOT run scans or floods: whatever happens now is learned as normal.")
     capture.start_capture(collector.handle, iface=iface, timeout=seconds)

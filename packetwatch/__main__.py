@@ -108,19 +108,24 @@ def main(argv=None):
         return
 
     capture.preflight()
-    from .model import Detector
     from .pipeline import Pipeline
 
     from .riskmap import RiskMap
 
     risk = RiskMap.from_json(args.risk_map) if args.risk_map else RiskMap()
     own = local_addresses(include_gateway=not args.block_gateway)
+    destinations = local_addresses(include_gateway=False)
+    if not destinations:
+        sys.exit("ERROR: could not identify this host's IPv4 addresses; "
+                 "refusing to classify unrelated traffic. Check --list-ifaces.")
     if args.block_gateway:
         print("WARNING: --block-gateway is on. If the gateway is flagged it WILL be "
               "blocked and this PC loses internet until --unblock-all.")
     blocker = FirewallBlocker(dry_run=args.dry_run, whitelist=set(args.whitelist) | own)
+    from .model import Detector
     pipeline = Pipeline(Detector(), blocker, Alerter(), own_addresses=own,
-                        record_path=args.record, risk_map=risk)
+                        record_path=args.record, risk_map=risk,
+                        destination_addresses=destinations)
     dash = None
     if args.dashboard is not None:
         from .dashboard import attach

@@ -1,5 +1,17 @@
 # Local setup and validation — 23 October 2026
 
+## Follow-up detection-quality changes
+
+The fixes described in [IMPROVEMENTS.md](IMPROVEMENTS.md) add 19 passing regressions
+for feature counts, expiry, host scope, CLI wiring and calibration validation.
+The existing 35 dashboard/vulnerability tests also passed (50 tests were run
+together before four additional scope/wiring tests were added; the final set of
+19 new tests passed separately). Syntax compilation and whitespace checks passed.
+An isolated old/new feature comparison measured 256→30 for repeated ports,
+64→8 for repeated destinations, and 256→0 after expiry. These are counting
+corrections, not classifier accuracy scores. The Windows native-library policy
+blocker was rechecked and remains; full ML tests and simulation are still blocked.
+
 ## Repository changes
 
 - Imported the three differences from the team snapshot `ec2fef115eede26dc84e714ec5b3e7f0d67c771b`: `demo_server.py`, `packetwatch/__main__.py`, and `packetwatch/response.py`.
