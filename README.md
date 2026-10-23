@@ -1,5 +1,14 @@
 # PacketWatch
 
+**New to the project?** Start with the [Windows setup and run instructions](WINDOWS_SETUP.md)
+and the [100-point study guide](STUDY_GUIDE.md). Run `setup-windows.ps1` to create
+an isolated Python environment, then `run-demo.cmd` for the offline dashboard.
+See [local validation status](VALIDATION.md) for completed checks and the Windows
+Application Control issue currently preventing model training on the setup machine.
+
+Team source: [Aadharsh-s/packetwatch](https://github.com/Aadharsh-s/packetwatch).
+This repository preserves the imported project and adds setup and learning resources.
+
 A lightweight, CPU-only intrusion detection and prevention system for a single Windows machine. It watches live network traffic, classifies each remote host's behaviour with a Decision Tree and a Multinomial Naive Bayes model, confirms every flag with explainable threshold rules, and blocks confirmed attackers through Windows Firewall.
 
 ## Base paper
